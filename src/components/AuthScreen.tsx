@@ -191,7 +191,7 @@ export function AuthScreen() {
             </form>
 
             <p className="mt-5 text-center text-sm text-zinc-400">
-              {mode === "register" ? "Already have an account?" : "New to Momentum?"}{" "}
+              {mode === "register" ? "Already have an account?" : "New to StudyRise?"}{" "}
               <button
                 onClick={() => {
                   setMode(mode === "register" ? "signin" : "register");
