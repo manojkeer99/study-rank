@@ -119,7 +119,7 @@ export function AuthScreen() {
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600">
                 <Zap className="h-5 w-5 text-emerald-950" strokeWidth={2.5} />
               </div>
-              <p className="font-display text-xl font-bold">Momentum</p>
+              <p className="font-display text-xl font-bold">StudyRise</p>
             </div>
 
             <h2 className="font-display text-2xl font-bold tracking-tight">
