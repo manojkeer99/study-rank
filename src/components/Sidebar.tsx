@@ -187,7 +187,7 @@ export function MobileHeader({
         <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600">
           <Zap className="h-4.5 w-4.5 text-emerald-950" strokeWidth={2.5} />
         </div>
-        <p className="font-display text-lg font-bold tracking-tight">Momentum</p>
+        <p className="font-display text-lg font-bold tracking-tight">StudyRise</p>
       </div>
       <div className="flex items-center gap-2">
         <button
