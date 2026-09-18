@@ -131,7 +131,7 @@ export function Sidebar({
             <span className="font-display text-sm font-bold">{Math.round(dayProgress * 100)}%</span>
           </Ring>
           <div className="min-w-0">
-            <p className="text-[13px] font-semibold text-zinc-200">Today's momentum</p>
+            <p className="text-[13px] font-semibold text-zinc-200">Today's StudyRise</p>
             <p className="mt-0.5 text-xs leading-relaxed text-zinc-500">
               {bestStreak > 0 ? `${bestStreak}-day best streak 🔥` : "Start a streak today"}
             </p>
