@@ -73,7 +73,7 @@ export function Dashboard({
           <p className="mt-1.5 text-sm text-zinc-400">
             {dueToday - doneToday > 0
               ? `You have ${dueToday - doneToday} task${dueToday - doneToday === 1 ? "" : "s"} left today. You've got this.`
-              : "Everything for today is cleared — go enjoy the momentum."}
+              : "Everything for today is cleared — go enjoy the StudyRise."}
           </p>
         </div>
         <button
