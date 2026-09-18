@@ -1,210 +1,266 @@
-import { useState, type FormEvent } from "react";
-import {
-  Zap,
-  Mail,
-  Lock,
-  User as UserIcon,
-  Eye,
-  EyeOff,
-  LineChart,
-  Repeat,
-  Trophy,
-  ShieldCheck,
-  AlertCircle,
-} from "lucide-react";
-import { useAuth, Avatar } from "../lib/auth";
+import { useEffect, useId, useState } from "react";
+import { TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { cn } from "../utils/cn";
 
-export function AuthScreen() {
-  const { signIn, register } = useAuth();
-  const [mode, setMode] = useState<"signin" | "register">("register");
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPw, setShowPw] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+interface Pt {
+  x: number;
+  y: number;
+  v: number;
+}
 
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    const res =
-      mode === "signin" ? signIn(email, password) : register(name, email, password);
-    if (!res.ok) setError(res.error ?? "Something went wrong.");
-  };
+function smoothPath(points: Pt[]): string {
+  if (points.length === 0) return "";
+  if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
+  let d = `M ${points[0].x} ${points[0].y}`;
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[i - 1] ?? points[i];
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const p3 = points[i + 2] ?? p2;
+    const cp1x = p1.x + (p2.x - p0.x) / 6;
+    const cp1y = p1.y + (p2.y - p0.y) / 6;
+    const cp2x = p2.x - (p3.x - p1.x) / 6;
+    const cp2y = p2.y - (p3.y - p1.y) / 6;
+    d += ` C ${cp1x.toFixed(2)} ${cp1y.toFixed(2)}, ${cp2x.toFixed(2)} ${cp2y.toFixed(2)}, ${p2.x.toFixed(2)} ${p2.y.toFixed(2)}`;
+  }
+  return d;
+}
+
+export function niceMax(v: number): number {
+  const raw = Math.max(v, 1);
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  for (const mult of [1, 2, 2.5, 5, 10]) {
+    const candidate = mult * mag;
+    if (candidate >= raw * 1.12) return candidate;
+  }
+  return 10 * mag;
+}
+
+export function AreaChart({
+  data,
+  labels,
+  tips,
+  color,
+  height = 230,
+  max,
+  formatY = (n) => `${Math.round(n)}`,
+  formatTip = (n) => `${Math.round(n)}`,
+}: {
+  data: number[];
+  labels: string[];
+  tips?: string[];
+  color: string;
+  height?: number;
+  max?: number;
+  formatY?: (n: number) => string;
+  formatTip?: (n: number) => string;
+}) {
+  const id = useId().replace(/:/g, "");
+  const [active, setActive] = useState<number | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(false);
+    const raf = requestAnimationFrame(() => setMounted(true));
+    return () => cancelAnimationFrame(raf);
+  }, [data]);
+
+  const W = 660;
+  const H = height;
+  const padL = 44;
+  const padR = 16;
+  const padT = 16;
+  const padB = 30;
+  const innerW = W - padL - padR;
+  const innerH = H - padT - padB;
+  const maxV = max ?? niceMax(Math.max(...data, 1));
+  const n = data.length;
+
+  const points: Pt[] = data.map((v, i) => ({
+    x: padL + (n <= 1 ? innerW / 2 : (i * innerW) / (n - 1)),
+    y: padT + innerH * (1 - Math.min(v, maxV) / maxV),
+    v,
+  }));
+  const line = smoothPath(points);
+  const baseY = padT + innerH;
+  const area =
+    points.length > 1
+      ? `${line} L ${points[n - 1].x.toFixed(2)} ${baseY} L ${points[0].x.toFixed(2)} ${baseY} Z`
+      : "";
+  const labelEvery = Math.ceil(n / 8);
+  const gridFracs = [0, 0.25, 0.5, 0.75, 1];
+
+  const activePt = active !== null ? points[active] : null;
+  const tipLeft = activePt ? Math.min(90, Math.max(10, (activePt.x / W) * 100)) : 0;
+  const tipTop = activePt ? (activePt.y / H) * 100 : 0;
 
   return (
-    <div className="app-bg flex min-h-screen items-center justify-center p-4 sm:p-8">
-      <div className="grid w-full max-w-5xl overflow-hidden rounded-3xl border border-white/[0.08] bg-white/[0.02] shadow-2xl backdrop-blur-xl lg:grid-cols-2">
-        {/* Brand panel */}
-        <div className="relative hidden flex-col justify-between overflow-hidden p-10 lg:flex">
-          <div
-            className="pointer-events-none absolute inset-0"
-            style={{
-              background:
-                "radial-gradient(420px 300px at 20% 0%, rgba(16,185,129,0.22), transparent 60%), radial-gradient(380px 300px at 100% 100%, rgba(139,92,246,0.18), transparent 60%)",
-            }}
+    <div className="relative w-full select-none">
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height }}>
+        <defs>
+          <linearGradient id={`area-${id}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.32" />
+            <stop offset="100%" stopColor={color} stopOpacity="0.01" />
+          </linearGradient>
+        </defs>
+
+        {gridFracs.map((f) => {
+          const y = padT + innerH * (1 - f);
+          return (
+            <g key={f}>
+              <line x1={padL} y1={y} x2={W - padR} y2={y} stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
+              <text x={padL - 8} y={y + 4} textAnchor="end" className="fill-zinc-500" fontSize="11" fontWeight="600">
+                {formatY(maxV * f)}
+              </text>
+            </g>
+          );
+        })}
+
+        {labels.map((l, i) =>
+          i % labelEvery === 0 || i === n - 1 ? (
+            <text
+              key={i}
+              x={points[i].x}
+              y={H - 8}
+              textAnchor="middle"
+              className="fill-zinc-500"
+              fontSize="11"
+              fontWeight="600"
+            >
+              {l}
+            </text>
+          ) : null
+        )}
+
+        {mounted && area && <path d={area} fill={`url(#area-${id})`} className="animate-pop" />}
+
+        {line && (
+          <path
+            d={line}
+            fill="none"
+            stroke={color}
+            strokeWidth="2.75"
+            strokeLinecap="round"
+            pathLength={1}
+            strokeDasharray={1}
+            strokeDashoffset={mounted ? 0 : 1}
+            style={{ transition: "stroke-dashoffset 1.1s cubic-bezier(0.22,1,0.36,1)" }}
           />
-          <div className="relative flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-600 shadow-lg shadow-emerald-500/25">
-              <Zap className="h-5 w-5 text-emerald-950" strokeWidth={2.5} />
-            </div>
-            <div>
-              <p className="font-display text-xl font-bold tracking-tight">Momentum</p>
-              <p className="text-[11px] font-medium uppercase tracking-widest text-zinc-500">
-                Daily productivity cockpit
-              </p>
-            </div>
-          </div>
+        )}
 
-          <div className="relative space-y-6">
-            <h1 className="font-display text-4xl font-bold leading-tight tracking-tight">
-              Show up.
-              <br />
-              Stack wins.
-              <br />
-              <span className="bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent">
-                Climb the ranks.
-              </span>
-            </h1>
-            <div className="space-y-4">
-              {[
-                { icon: LineChart, text: "Daily activity graphs that reveal growth & slumps" },
-                { icon: Repeat, text: "Habit streaks rewarded with badges up to 365 days" },
-                { icon: Trophy, text: "Live leaderboard against 1,500+ members" },
-              ].map(({ icon: Icon, text }) => (
-                <div key={text} className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20">
-                    <Icon className="h-4 w-4" />
-                  </div>
-                  <p className="text-sm text-zinc-300">{text}</p>
-                </div>
-              ))}
-            </div>
+        {activePt && (
+          <g>
+            <line
+              x1={activePt.x}
+              y1={padT}
+              x2={activePt.x}
+              y2={baseY}
+              stroke={color}
+              strokeWidth="1"
+              strokeDasharray="4 4"
+              opacity="0.5"
+            />
+            <circle cx={activePt.x} cy={activePt.y} r="7" fill={color} opacity="0.18" />
+            <circle cx={activePt.x} cy={activePt.y} r="4" fill={color} stroke="#09090b" strokeWidth="2" />
+          </g>
+        )}
+      </svg>
 
-            {/* Mini leaderboard preview */}
-            <div className="rounded-2xl border border-white/[0.08] bg-black/30 p-4">
-              <p className="mb-3 text-[11px] font-bold uppercase tracking-widest text-zinc-500">
-                This week's leaderboard
-              </p>
-              {[
-                { n: "Sofia Berg", xp: "3,605 XP", rank: 1, c: 6 },
-                { n: "Kai Tanaka", xp: "3,310 XP", rank: 2, c: 5 },
-                { n: "Amara Okafor", xp: "3,140 XP", rank: 3, c: 9 },
-              ].map((p) => (
-                <div key={p.rank} className="flex items-center gap-3 py-1.5">
-                  <span
-                    className={`w-5 text-center font-display text-sm font-bold ${
-                      p.rank === 1 ? "text-amber-400" : p.rank === 2 ? "text-zinc-300" : "text-amber-700"
-                    }`}
-                  >
-                    {p.rank}
-                  </span>
-                  <Avatar name={p.n} colorIndex={p.c} size={28} />
-                  <span className="flex-1 text-sm font-medium text-zinc-200">{p.n}</span>
-                  <span className="text-xs font-semibold text-zinc-500">{p.xp}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <p className="relative flex items-center gap-2 text-[11px] text-zinc-500">
-            <ShieldCheck className="h-4 w-4 text-emerald-400" />
-            Accounts stay in this browser — no third-party sign-in, no data shared.
+      {/* Tooltip */}
+      {activePt && active !== null && (
+        <div
+          className="pointer-events-none absolute z-10 -translate-x-1/2 rounded-xl border border-white/10 bg-zinc-900/95 px-3 py-2 text-center shadow-2xl backdrop-blur"
+          style={{ left: `${tipLeft}%`, top: `calc(${tipTop}% - 8px)`, transform: "translate(-50%, -100%)" }}
+        >
+          <p className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
+            {tips?.[active] ?? labels[active]}
+          </p>
+          <p className="mt-0.5 whitespace-nowrap text-sm font-bold" style={{ color }}>
+            {formatTip(activePt.v)}
           </p>
         </div>
+      )}
 
-        {/* Form panel */}
-        <div className="flex flex-col justify-center p-7 sm:p-10">
-          <div className="mx-auto w-full max-w-sm">
-            <div className="mb-7 flex items-center gap-3 lg:hidden">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600">
-                <Zap className="h-5 w-5 text-emerald-950" strokeWidth={2.5} />
-              </div>
-              <p className="font-display text-xl font-bold">Momentum</p>
-            </div>
-
-            <h2 className="font-display text-2xl font-bold tracking-tight">
-              {mode === "register" ? "Create your account" : "Welcome back"}
-            </h2>
-            <p className="mt-1 text-sm text-zinc-400">
-              {mode === "register"
-                ? "Sign up with your email to track activity, earn badges, and join the leaderboard."
-                : "Sign in with your email and password to continue your momentum."}
-            </p>
-
-            <form onSubmit={submit} className="mt-6 space-y-3.5">
-              {mode === "register" && (
-                <div className="flex items-center gap-2.5 rounded-xl border border-white/[0.08] bg-black/30 px-3.5 focus-within:border-emerald-500/50">
-                  <UserIcon className="h-4 w-4 shrink-0 text-zinc-500" />
-                  <input
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Full name"
-                    autoComplete="name"
-                    className="w-full bg-transparent py-3 text-sm placeholder:text-zinc-600 focus:outline-none"
-                  />
-                </div>
-              )}
-              <div className="flex items-center gap-2.5 rounded-xl border border-white/[0.08] bg-black/30 px-3.5 focus-within:border-emerald-500/50">
-                <Mail className="h-4 w-4 shrink-0 text-zinc-500" />
-                <input
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  type="email"
-                  placeholder="you@gmail.com"
-                  autoComplete="email"
-                  className="w-full bg-transparent py-3 text-sm placeholder:text-zinc-600 focus:outline-none"
-                />
-              </div>
-              <div className="flex items-center gap-2.5 rounded-xl border border-white/[0.08] bg-black/30 px-3.5 focus-within:border-emerald-500/50">
-                <Lock className="h-4 w-4 shrink-0 text-zinc-500" />
-                <input
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  type={showPw ? "text" : "password"}
-                  placeholder={mode === "register" ? "Password (6+ characters)" : "Password"}
-                  autoComplete={mode === "register" ? "new-password" : "current-password"}
-                  className="w-full bg-transparent py-3 text-sm placeholder:text-zinc-600 focus:outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPw((v) => !v)}
-                  aria-label={showPw ? "Hide password" : "Show password"}
-                  className="text-zinc-500 transition hover:text-zinc-300"
-                >
-                  {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-
-              {error && (
-                <div className="flex items-start gap-2 rounded-xl bg-rose-500/10 px-3 py-2.5 text-xs font-medium text-rose-300 ring-1 ring-rose-500/25">
-                  <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                  {error}
-                </div>
-              )}
-
-              <button
-                type="submit"
-                className="w-full rounded-xl bg-emerald-500 py-3 text-sm font-bold text-emerald-950 shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400 active:scale-[0.99]"
-              >
-                {mode === "register" ? "Sign up" : "Sign in"}
-              </button>
-            </form>
-
-            <p className="mt-5 text-center text-sm text-zinc-400">
-              {mode === "register" ? "Already have an account?" : "New to Momentum?"}{" "}
-              <button
-                onClick={() => {
-                  setMode(mode === "register" ? "signin" : "register");
-                  setError(null);
-                }}
-                className="font-bold text-emerald-400 hover:text-emerald-300"
-              >
-                {mode === "register" ? "Sign in" : "Create an account"}
-              </button>
-            </p>
-          </div>
-        </div>
+      {/* Hover zones */}
+      <div className="absolute inset-0 flex" style={{ paddingLeft: `${(padL / W) * 100}%`, paddingRight: `${(padR / W) * 100}%` }}>
+        {data.map((_, i) => (
+          <div
+            key={i}
+            className="h-full flex-1 cursor-pointer"
+            onMouseEnter={() => setActive(i)}
+            onMouseLeave={() => setActive(null)}
+            onTouchStart={() => setActive(i)}
+          />
+        ))}
       </div>
     </div>
+  );
+}
+
+export function Sparkline({
+  data,
+  color,
+  width = 110,
+  height = 38,
+}: {
+  data: number[];
+  color: string;
+  width?: number;
+  height?: number;
+}) {
+  const id = useId().replace(/:/g, "");
+  const maxV = niceMax(Math.max(...data, 1));
+  const pts: Pt[] = data.map((v, i) => ({
+    x: data.length <= 1 ? width / 2 : (i * width) / (data.length - 1),
+    y: height - 3 - ((height - 8) * Math.min(v, maxV)) / maxV,
+    v,
+  }));
+  const line = smoothPath(pts);
+  const area =
+    pts.length > 1
+      ? `${line} L ${pts[pts.length - 1].x} ${height} L ${pts[0].x} ${height} Z`
+      : "";
+  const last = pts[pts.length - 1];
+  return (
+    <svg width={width} height={height} className="shrink-0">
+      <defs>
+        <linearGradient id={`spark-${id}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.3" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      {area && <path d={area} fill={`url(#spark-${id})`} />}
+      <path d={line} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" />
+      {last && <circle cx={last.x} cy={last.y} r="2.75" fill={color} />}
+    </svg>
+  );
+}
+
+export function DeltaBadge({
+  pct,
+  suffix = "%",
+  className,
+}: {
+  pct: number;
+  suffix?: string;
+  className?: string;
+}) {
+  const tone = pct > 3 ? "up" : pct < -3 ? "down" : "flat";
+  const Icon = tone === "up" ? TrendingUp : tone === "down" ? TrendingDown : Minus;
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold",
+        tone === "up" && "bg-emerald-500/12 text-emerald-400 ring-1 ring-emerald-500/25",
+        tone === "down" && "bg-rose-500/12 text-rose-400 ring-1 ring-rose-500/25",
+        tone === "flat" && "bg-zinc-500/12 text-zinc-400 ring-1 ring-zinc-500/25",
+        className
+      )}
+    >
+      <Icon className="h-3 w-3" />
+      {pct > 0 ? "+" : ""}
+      {pct.toFixed(0)}
+      {suffix}
+    </span>
   );
 }
