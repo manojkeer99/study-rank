@@ -108,7 +108,7 @@ export function Sidebar({
           <Zap className="h-5 w-5 text-emerald-950" strokeWidth={2.5} />
         </div>
         <div>
-          <p className="font-display text-lg font-bold leading-tight tracking-tight">Momentum</p>
+          <p className="font-display text-lg font-bold leading-tight tracking-tight">StudyRise</p>
           <p className="text-[11px] font-medium uppercase tracking-widest text-zinc-500">Daily cockpit</p>
         </div>
       </div>
