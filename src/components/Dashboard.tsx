@@ -238,7 +238,7 @@ export function Dashboard({
 
           {/* Daily ring */}
           <section className="card animate-fade-up flex flex-col items-center p-6 text-center" style={{ animationDelay: "120ms" }}>
-            <h2 className="self-start font-display text-lg font-semibold">Daily momentum</h2>
+            <h2 className="self-start font-display text-lg font-semibold">Daily StudyRise</h2>
             <Ring size={168} stroke={13} progress={dayProgress} className="my-5">
               <span className="font-display text-4xl font-bold">{Math.round(dayProgress * 100)}%</span>
               <span className="mt-1 text-xs text-zinc-500">complete</span>
